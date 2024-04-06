@@ -7,6 +7,9 @@ target
 .vscode
 *.iml
 
+application.dev.yml
+cdk.context.json
+
 # CDK asset staging directory
 .cdk.staging
 cdk.out

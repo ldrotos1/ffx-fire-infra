@@ -3,6 +3,13 @@
          xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.4</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+
     <groupId>com.ffx</groupId>
     <artifactId>ffx-fire-infra</artifactId>
     <version>0.1</version>
@@ -12,6 +19,7 @@
         <cdk.version>2.134.0</cdk.version>
         <constructs.version>[10.0.0,11.0.0)</constructs.version>
         <junit.version>5.7.1</junit.version>
+        <yml.version>1.11</yml.version>
     </properties>
 
     <build>
@@ -33,6 +41,7 @@
                     <mainClass>com.ffx.FfxFireInfraApp</mainClass>
                 </configuration>
             </plugin>
+           
         </plugins>
     </build>
 
@@ -56,5 +65,12 @@
           <version>${junit.version}</version>
           <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>${yml.version}</version>
+        </dependency>
+
     </dependencies>
 </project>

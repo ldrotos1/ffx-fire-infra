@@ -1,0 +1,5 @@
+aws_account_number: <AWS account number>
+aws_region: <AWS region>
+project_name: <Project name that will be prepended to AWS resources>
+vpc_cidr_range: <VPC CIDR range>
+dev_machine_ip: <Development machine IP>
