@@ -19,6 +19,9 @@ import software.amazon.awscdk.services.ec2.Vpc;
 
 public class FfxFireNetworkStack extends Stack {
 
+    private final Vpc vpc;
+    private final SecurityGroup securityGroup;
+
     public FfxFireNetworkStack(final Construct scope, final String id, final Map<String, Object> config) {
         this(scope, id, null, null);
     }
@@ -30,7 +33,7 @@ public class FfxFireNetworkStack extends Stack {
         final String vpcCidrRange = config.get("vpc_cidr_range").toString();
         final String devMachineIp = config.get("dev_machine_ip").toString();
 
-        final Vpc vpc = Vpc.Builder.create(this, projectName.concat("-vpc"))
+        this.vpc = Vpc.Builder.create(this, projectName.concat("-vpc"))
             .vpcName(projectName.concat("-vpc"))
             .createInternetGateway(true)
             .defaultInstanceTenancy(DefaultInstanceTenancy.DEFAULT)
@@ -46,7 +49,7 @@ public class FfxFireNetworkStack extends Stack {
                     .build()))
             .build();
 
-        final SecurityGroup securityGroup = SecurityGroup.Builder.create(this, projectName.concat("-sg"))
+        this.securityGroup = SecurityGroup.Builder.create(this, projectName.concat("-sg"))
             .vpc(vpc)
             .securityGroupName(projectName.concat("-sg"))
             .description("Allow dev machine access")
@@ -56,5 +59,13 @@ public class FfxFireNetworkStack extends Stack {
             Peer.ipv4(devMachineIp), 
             Port.tcp(5432), 
             "Allow dev machine access");
+    }
+
+    public Vpc getVpc() {
+        return this.vpc;
+    }
+
+    public SecurityGroup getSecurityGroup() {
+        return this.securityGroup;
     }
 }

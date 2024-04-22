@@ -6,6 +6,7 @@ import java.util.Map;
 import com.ffx.config.Bootstrap;
 import com.ffx.config.Configuration;
 import com.ffx.stacks.FfxFireNetworkStack;
+import com.ffx.stacks.FfxFireDataStoreStack;
 
 import software.amazon.awscdk.App;
 import software.amazon.awscdk.Environment;
@@ -14,7 +15,12 @@ import software.amazon.awscdk.StackProps;
 @Configuration
 public class FfxFireInfraApp {
 	
+	@SuppressWarnings("unused")
 	public static void main(final String[] args) {
+		
+		final FfxFireNetworkStack ffxFireNetworkStack;
+		final FfxFireDataStoreStack ffxFireDataStoreStack;
+
 		try {
 			App app = new App();
 			
@@ -26,13 +32,14 @@ public class FfxFireInfraApp {
 					.build())
 				.build();
 
-			new FfxFireNetworkStack(app, "FfxFireNetworkStack", props, configMap);
+			ffxFireNetworkStack = new FfxFireNetworkStack(app, "FfxFireNetworkStack", props, configMap);
+			ffxFireDataStoreStack = new FfxFireDataStoreStack(app, "FfxFireDataStoreStack", props, configMap, ffxFireNetworkStack);
 
-        	app.synth();
+      app.synth();
 		} 
 		catch (IOException e) {
 			e.printStackTrace();
 		}
-    }
+  }
 }
 
