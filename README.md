@@ -5,7 +5,7 @@ Contains code for creating and maintaining the AWS cloud infrastructure for a Fa
 Java 17,<br/> 
 Maven 3.9,<br/> 
 AWS CLI 2.15,<br/> 
-AWS CDK 2.134<br/?
+AWS CDK 2.134<br/>
 
 ## Setup
 1. Configure AWS CDK programmatic access
