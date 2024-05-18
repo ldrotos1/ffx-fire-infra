@@ -36,7 +36,7 @@ public class FfxFireInfraApp {
 
 			ffxFireNetworkStack = new FfxFireNetworkStack(app, "FfxFireNetworkStack", props, configMap);
 			ffxFireDataStoreStack = new FfxFireDataStoreStack(app, "FfxFireDataStoreStack", props, configMap, ffxFireNetworkStack);
-			ffxFireAppStack = new FfxFireAppStack(app, "FfxFireAppStack", props, configMap);
+			ffxFireAppStack = new FfxFireAppStack(app, "FfxFireAppStack", props, configMap, ffxFireNetworkStack);
 
       app.synth();
 		} 

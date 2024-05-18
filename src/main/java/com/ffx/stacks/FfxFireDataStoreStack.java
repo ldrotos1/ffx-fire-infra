@@ -36,7 +36,7 @@ public class FfxFireDataStoreStack extends Stack {
     final String adminPassword = config.get("db_admin_password").toString();
 
     List<SecurityGroup> securityGroups = new ArrayList<SecurityGroup>();
-    securityGroups.add(network.getSecurityGroup());
+    securityGroups.add(network.getRdsAccessSecurityGroup());
 
     DatabaseInstance.Builder.create(this, projectName.concat("-db"))
       .engine(DatabaseInstanceEngine.postgres(PostgresInstanceEngineProps.builder().version(PostgresEngineVersion.VER_16_1).build()))

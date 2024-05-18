@@ -7,3 +7,6 @@ dev_machine_ip: <Development machine IP>
 
 db_admin_user: <The Postgres DB admin user>
 db_admin_password: <The Postgres DB admin user password>
+
+key_pair_id: <AWS EC2 key pair ID>
+key_pair_name: <AWS EC2 key pair name>

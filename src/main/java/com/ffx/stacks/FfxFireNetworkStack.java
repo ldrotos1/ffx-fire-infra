@@ -20,7 +20,8 @@ import software.amazon.awscdk.services.ec2.Vpc;
 public class FfxFireNetworkStack extends Stack {
 
     private final Vpc vpc;
-    private final SecurityGroup securityGroup;
+    private final SecurityGroup rdsAccessSecurityGroup;
+    private final SecurityGroup serviceInstanceSecurityGroup;
 
     public FfxFireNetworkStack(final Construct scope, final String id, final Map<String, Object> config) {
         this(scope, id, null, null);
@@ -33,6 +34,7 @@ public class FfxFireNetworkStack extends Stack {
         final String vpcCidrRange = config.get("vpc_cidr_range").toString();
         final String devMachineIp = config.get("dev_machine_ip").toString();
 
+        // Creates the VPC with two public subnets
         this.vpc = Vpc.Builder.create(this, projectName.concat("-vpc"))
             .vpcName(projectName.concat("-vpc"))
             .createInternetGateway(true)
@@ -49,23 +51,35 @@ public class FfxFireNetworkStack extends Stack {
                     .build()))
             .build();
 
-        this.securityGroup = SecurityGroup.Builder.create(this, projectName.concat("-sg"))
+        // Creates the security group for proving dev macine access to the RDS instance
+        this.rdsAccessSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("rds-access-sg"))
             .vpc(vpc)
-            .securityGroupName(projectName.concat("-sg"))
+            .securityGroupName(projectName.concat("rds-access-sg"))
             .description("Allow dev machine access")
             .allowAllOutbound(true)
             .build();
-        securityGroup.addIngressRule(
-            Peer.ipv4(devMachineIp), 
-            Port.tcp(5432), 
-            "Allow dev machine access");
+        this.rdsAccessSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(5432), "Allow dev machine access");
+
+        // Creates the service instance security group
+        this.serviceInstanceSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("services-sg"))
+            .vpc(vpc)
+            .securityGroupName(projectName.concat("services-sg"))
+            .description("Allow http and ssh access to services instances")
+            .allowAllOutbound(true)
+            .build();
+        this.serviceInstanceSecurityGroup.addIngressRule(Peer.ipv4("0.0.0.0/0"), Port.tcp(8080), "Allow http access");
+        this.serviceInstanceSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(22), "Allow ssh access");
     }
 
     public Vpc getVpc() {
         return this.vpc;
     }
 
-    public SecurityGroup getSecurityGroup() {
-        return this.securityGroup;
+    public SecurityGroup getRdsAccessSecurityGroup() {
+        return this.rdsAccessSecurityGroup;
+    }
+
+    public SecurityGroup getServiceInstanceSecurityGroup() {
+        return this.serviceInstanceSecurityGroup;
     }
 }
