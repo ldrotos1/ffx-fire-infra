@@ -1,0 +1,15 @@
+[Unit]
+Description=FFX Fire Services Java Application as a Service
+After=syslog.target
+
+[Service]
+User=ec2-user
+ExecStart=/usr/bin/java -Dspring.config.location=/opt/application.properties -jar /opt/fire-services.jar
+
+SuccessExitStatus=143
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
