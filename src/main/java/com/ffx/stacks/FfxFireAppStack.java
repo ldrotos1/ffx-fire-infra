@@ -5,18 +5,18 @@ import software.constructs.Construct;
 import java.util.List;
 import java.util.Map;
 
+import software.amazon.awscdk.RemovalPolicy;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.s3.Bucket;
 import software.amazon.awscdk.services.s3.deployment.BucketDeployment;
 import software.amazon.awscdk.services.s3.deployment.Source;
+import software.amazon.awscdk.services.autoscaling.AutoScalingGroup;
 import software.amazon.awscdk.services.ec2.AmazonLinuxGeneration;
 import software.amazon.awscdk.services.ec2.AmazonLinuxImage;
-import software.amazon.awscdk.services.ec2.Instance;
 import software.amazon.awscdk.services.ec2.InstanceClass;
 import software.amazon.awscdk.services.ec2.InstanceSize;
 import software.amazon.awscdk.services.ec2.InstanceType;
-import software.amazon.awscdk.services.ec2.KeyPair;
 import software.amazon.awscdk.services.ec2.UserData;
 import software.amazon.awscdk.services.iam.ManagedPolicy;
 import software.amazon.awscdk.services.iam.Role;
@@ -34,12 +34,15 @@ public class FfxFireAppStack extends Stack {
         super(scope, id, props);
 
         final String projectName = config.get("project_name").toString();
-        final String keyPairId = config.get("key_pair_id").toString();
         final String keyPairName = config.get("key_pair_name").toString();
 
         // Creates the staging bucket for storing artifacts that will be deployed
-        Bucket bucket = new Bucket(this, projectName.concat("-staging"));
-        BucketDeployment.Builder.create(this, "DeployWebsite")
+        Bucket bucket = Bucket.Builder.create(this, projectName.concat("-staging"))
+            .bucketName(projectName.concat("-staging"))
+            .removalPolicy(RemovalPolicy.DESTROY)
+            .autoDeleteObjects(true)
+            .build(); 
+        BucketDeployment.Builder.create(this, "deploy-service-assets")
             .sources(List.of(Source.asset("./assets")))
             .destinationBucket(bucket)
             .build();
@@ -58,24 +61,26 @@ public class FfxFireAppStack extends Stack {
         userData.addCommands("unzip awscliv2.zip");
         userData.addCommands("sudo ./aws/install");
         userData.addCommands("sudo yum install java-17-amazon-corretto.x86_64 -y");
-        userData.addCommands("sudo aws s3 cp s3://ffxfireappstack-ffxfirestagingdcae2ed8-06mrmtpaxhu9/ffx-fire-app.service /etc/systemd/system/ffx-fire-app.service");
-        userData.addCommands("sudo aws s3 cp s3://ffxfireappstack-ffxfirestagingdcae2ed8-06mrmtpaxhu9/fire-services.jar /opt/fire-services.jar");
-        userData.addCommands("sudo aws s3 cp s3://ffxfireappstack-ffxfirestagingdcae2ed8-06mrmtpaxhu9/application.properties /opt/application.properties");
+        userData.addCommands("sudo aws s3 cp s3://" + bucket.getBucketName() + "/ffx-fire-app.service /etc/systemd/system/ffx-fire-app.service");
+        userData.addCommands("sudo aws s3 cp s3://" + bucket.getBucketName() + "/fire-services.jar /opt/fire-services.jar");
+        userData.addCommands("sudo aws s3 cp s3://" + bucket.getBucketName() + "/application.properties /opt/application.properties");
         userData.addCommands("sudo systemctl daemon-reload");
         userData.addCommands("sudo systemctl enable ffx-fire-app.service");
         userData.addCommands("sudo systemctl start ffx-fire-app");
 
-        // Creates the services instance
-        Instance instance = Instance.Builder.create(this, projectName.concat("-services"))
+        // Creates the services ASG
+        AutoScalingGroup.Builder.create(this, projectName.concat("-service-asg"))
+            .autoScalingGroupName(projectName.concat("-service-asg"))    
             .vpc(network.getVpc())
-            .instanceName(projectName.concat("-services"))
             .instanceType(InstanceType.of(InstanceClass.T2, InstanceSize.MICRO))
             .machineImage(AmazonLinuxImage.Builder.create().generation(AmazonLinuxGeneration.AMAZON_LINUX_2023).build())
             .securityGroup(network.getServiceInstanceSecurityGroup())
-            .keyPair(KeyPair.fromKeyPairName(this, keyPairId, keyPairName))
+            .keyName(keyPairName)
             .role(role)
+            .minCapacity(0)
+            .maxCapacity(1)
+            .desiredCapacity(0)
             .userData(userData)
             .build();
-        
     }
 }
