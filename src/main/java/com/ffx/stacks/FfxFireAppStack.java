@@ -69,7 +69,7 @@ public class FfxFireAppStack extends Stack {
         userData.addCommands("sudo systemctl start ffx-fire-app");
 
         // Creates the services ASG
-        AutoScalingGroup.Builder.create(this, projectName.concat("-service-asg"))
+        AutoScalingGroup autoScalingGroup = AutoScalingGroup.Builder.create(this, projectName.concat("-service-asg"))
             .autoScalingGroupName(projectName.concat("-service-asg"))    
             .vpc(network.getVpc())
             .instanceType(InstanceType.of(InstanceClass.T2, InstanceSize.MICRO))
@@ -82,5 +82,6 @@ public class FfxFireAppStack extends Stack {
             .desiredCapacity(0)
             .userData(userData)
             .build();
+        autoScalingGroup.attachToApplicationTargetGroup(network.getServiceTargetGroup());
     }
 }

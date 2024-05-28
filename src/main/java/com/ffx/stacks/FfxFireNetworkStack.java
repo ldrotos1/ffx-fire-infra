@@ -2,6 +2,7 @@ package com.ffx.stacks;
 
 import software.constructs.Construct;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -16,12 +17,25 @@ import software.amazon.awscdk.services.ec2.SecurityGroup;
 import software.amazon.awscdk.services.ec2.SubnetConfiguration;
 import software.amazon.awscdk.services.ec2.SubnetType;
 import software.amazon.awscdk.services.ec2.Vpc;
+import software.amazon.awscdk.services.elasticloadbalancingv2.AddApplicationTargetGroupsProps;
+import software.amazon.awscdk.services.elasticloadbalancingv2.ApplicationListener;
+import software.amazon.awscdk.services.elasticloadbalancingv2.ApplicationLoadBalancer;
+import software.amazon.awscdk.services.elasticloadbalancingv2.ApplicationProtocol;
+import software.amazon.awscdk.services.elasticloadbalancingv2.ApplicationTargetGroup;
+import software.amazon.awscdk.services.elasticloadbalancingv2.BaseApplicationListenerProps;
+import software.amazon.awscdk.services.elasticloadbalancingv2.HealthCheck;
+import software.amazon.awscdk.services.elasticloadbalancingv2.IApplicationTargetGroup;
+import software.amazon.awscdk.services.elasticloadbalancingv2.TargetType;
 
 public class FfxFireNetworkStack extends Stack {
 
     private final Vpc vpc;
     private final SecurityGroup rdsAccessSecurityGroup;
     private final SecurityGroup serviceInstanceSecurityGroup;
+    private final SecurityGroup serviceAlbSecurityGroup;
+    private final ApplicationTargetGroup targetGroup;
+    private final ApplicationLoadBalancer loadBalancer;
+    private final ApplicationListener listener;
 
     public FfxFireNetworkStack(final Construct scope, final String id, final Map<String, Object> config) {
         this(scope, id, null, null);
@@ -52,23 +66,62 @@ public class FfxFireNetworkStack extends Stack {
             .build();
 
         // Creates the security group for proving dev macine access to the RDS instance
-        this.rdsAccessSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("rds-access-sg"))
+        this.rdsAccessSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-rds-access-sg"))
             .vpc(vpc)
-            .securityGroupName(projectName.concat("rds-access-sg"))
+            .securityGroupName(projectName.concat("-rds-access-sg"))
             .description("Allow dev machine access")
             .allowAllOutbound(true)
             .build();
         this.rdsAccessSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(5432), "Allow dev machine access");
 
-        // Creates the service instance security group
-        this.serviceInstanceSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("services-sg"))
+        // Creates the ALB security group
+        this.serviceAlbSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-alb-sg"))
             .vpc(vpc)
-            .securityGroupName(projectName.concat("services-sg"))
+            .securityGroupName(projectName.concat("-alb-sg"))
+            .description("Allow http to the ALB")
+            .allowAllOutbound(true)
+            .build();
+        this.serviceAlbSecurityGroup.addIngressRule(Peer.ipv4("0.0.0.0/0"), Port.tcp(8080), "Allow http access");
+
+        // Creates the service instance security group
+        this.serviceInstanceSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-services-sg"))
+            .vpc(vpc)
+            .securityGroupName(projectName.concat("-services-sg"))
             .description("Allow http and ssh access to services instances")
             .allowAllOutbound(true)
             .build();
-        this.serviceInstanceSecurityGroup.addIngressRule(Peer.ipv4("0.0.0.0/0"), Port.tcp(8080), "Allow http access");
-        this.serviceInstanceSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(22), "Allow ssh access");
+        this.serviceInstanceSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(22), "Allow ssh access"); 
+        this.serviceInstanceSecurityGroup.addIngressRule(this.serviceAlbSecurityGroup, Port.tcp(8080), "Allow traffic from ALB");
+
+        // Creates the application target group
+        targetGroup = ApplicationTargetGroup.Builder.create(this, projectName.concat("-service-tg"))
+            .vpc(this.vpc)
+            .targetGroupName(projectName.concat("-service-tg"))
+            .targetType(TargetType.INSTANCE)
+            .protocol(ApplicationProtocol.HTTP)
+            .port(8080)
+            .healthCheck(HealthCheck.builder()
+                .path("/stations")
+                .port("8080")
+                .build())
+            .build();
+
+        // Creates the application load balancer
+        this.loadBalancer = ApplicationLoadBalancer.Builder.create(this, projectName.concat("-alb"))
+            .loadBalancerName(projectName.concat("-alb"))    
+            .vpc(this.vpc)
+            .crossZoneEnabled(true)
+            .internetFacing(true)
+            .securityGroup(serviceAlbSecurityGroup)
+            .build();
+        this.listener = this.loadBalancer.addListener(projectName.concat("-listener"), BaseApplicationListenerProps.builder()
+            .protocol(ApplicationProtocol.HTTP)
+            .port(8080)
+            .build());
+
+        List<IApplicationTargetGroup> targetGroups = new ArrayList<IApplicationTargetGroup>();
+        targetGroups.add(targetGroup);
+        this.listener.addTargetGroups(projectName.concat("-tgs"), AddApplicationTargetGroupsProps.builder().targetGroups(targetGroups).build()); 
     }
 
     public Vpc getVpc() {
@@ -82,4 +135,8 @@ public class FfxFireNetworkStack extends Stack {
     public SecurityGroup getServiceInstanceSecurityGroup() {
         return this.serviceInstanceSecurityGroup;
     }
+
+    public ApplicationTargetGroup getServiceTargetGroup() {
+        return this.targetGroup;
+    } 
 }
