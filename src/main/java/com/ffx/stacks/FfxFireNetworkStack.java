@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import software.amazon.awscdk.Duration;
 import software.amazon.awscdk.Stack;
 import software.amazon.awscdk.StackProps;
 import software.amazon.awscdk.services.ec2.DefaultInstanceTenancy;
@@ -26,6 +27,10 @@ import software.amazon.awscdk.services.elasticloadbalancingv2.BaseApplicationLis
 import software.amazon.awscdk.services.elasticloadbalancingv2.HealthCheck;
 import software.amazon.awscdk.services.elasticloadbalancingv2.IApplicationTargetGroup;
 import software.amazon.awscdk.services.elasticloadbalancingv2.TargetType;
+import software.amazon.awscdk.services.route53.CnameRecord;
+import software.amazon.awscdk.services.route53.HostedZone;
+import software.amazon.awscdk.services.route53.HostedZoneProviderProps;
+import software.amazon.awscdk.services.route53.IHostedZone;
 
 public class FfxFireNetworkStack extends Stack {
 
@@ -47,6 +52,8 @@ public class FfxFireNetworkStack extends Stack {
         final String projectName = config.get("project_name").toString();
         final String vpcCidrRange = config.get("vpc_cidr_range").toString();
         final String devMachineIp = config.get("dev_machine_ip").toString();
+        final String domainName = config.get("domain_name").toString();
+        final String apiDomain = config.get("api_domain").toString();
 
         // Creates the VPC with two public subnets
         this.vpc = Vpc.Builder.create(this, projectName.concat("-vpc"))
@@ -81,7 +88,7 @@ public class FfxFireNetworkStack extends Stack {
             .description("Allow http to the ALB")
             .allowAllOutbound(true)
             .build();
-        this.serviceAlbSecurityGroup.addIngressRule(Peer.ipv4("0.0.0.0/0"), Port.tcp(8080), "Allow http access");
+        this.serviceAlbSecurityGroup.addIngressRule(Peer.ipv4("0.0.0.0/0"), Port.tcp(80), "Allow http access");
 
         // Creates the service instance security group
         this.serviceInstanceSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-services-sg"))
@@ -91,7 +98,7 @@ public class FfxFireNetworkStack extends Stack {
             .allowAllOutbound(true)
             .build();
         this.serviceInstanceSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(22), "Allow ssh access"); 
-        this.serviceInstanceSecurityGroup.addIngressRule(this.serviceAlbSecurityGroup, Port.tcp(8080), "Allow traffic from ALB");
+        this.serviceInstanceSecurityGroup.addIngressRule(this.serviceAlbSecurityGroup, Port.tcp(80), "Allow traffic from ALB");
 
         // Creates the application target group
         targetGroup = ApplicationTargetGroup.Builder.create(this, projectName.concat("-service-tg"))
@@ -99,10 +106,10 @@ public class FfxFireNetworkStack extends Stack {
             .targetGroupName(projectName.concat("-service-tg"))
             .targetType(TargetType.INSTANCE)
             .protocol(ApplicationProtocol.HTTP)
-            .port(8080)
+            .port(80)
             .healthCheck(HealthCheck.builder()
                 .path("/stations")
-                .port("8080")
+                .port("80")
                 .build())
             .build();
 
@@ -116,12 +123,24 @@ public class FfxFireNetworkStack extends Stack {
             .build();
         this.listener = this.loadBalancer.addListener(projectName.concat("-listener"), BaseApplicationListenerProps.builder()
             .protocol(ApplicationProtocol.HTTP)
-            .port(8080)
+            .port(80)
             .build());
 
         List<IApplicationTargetGroup> targetGroups = new ArrayList<IApplicationTargetGroup>();
         targetGroups.add(targetGroup);
         this.listener.addTargetGroups(projectName.concat("-tgs"), AddApplicationTargetGroupsProps.builder().targetGroups(targetGroups).build()); 
+
+        // Creates the hosted zone
+        HostedZoneProviderProps zoneProps = HostedZoneProviderProps.builder()
+            .domainName(domainName)
+            .build();
+        IHostedZone hostedZone = HostedZone.fromLookup(this, projectName.concat("-hz"), zoneProps);
+        CnameRecord.Builder.create(this, projectName.concat("-api-cname"))
+            .recordName(apiDomain)
+            .domainName(this.loadBalancer.getLoadBalancerDnsName())
+            .zone(hostedZone)
+            .ttl(Duration.seconds(300))
+            .build();
     }
 
     public Vpc getVpc() {
