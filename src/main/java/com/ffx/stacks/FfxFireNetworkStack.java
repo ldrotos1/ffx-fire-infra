@@ -72,15 +72,6 @@ public class FfxFireNetworkStack extends Stack {
                     .build()))
             .build();
 
-        // Creates the security group for proving dev macine access to the RDS instance
-        this.rdsAccessSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-rds-access-sg"))
-            .vpc(vpc)
-            .securityGroupName(projectName.concat("-rds-access-sg"))
-            .description("Allow dev machine access")
-            .allowAllOutbound(true)
-            .build();
-        this.rdsAccessSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(5432), "Allow dev machine access");
-
         // Creates the ALB security group
         this.serviceAlbSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-alb-sg"))
             .vpc(vpc)
@@ -100,6 +91,16 @@ public class FfxFireNetworkStack extends Stack {
         this.serviceInstanceSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(22), "Allow ssh access"); 
         this.serviceInstanceSecurityGroup.addIngressRule(this.serviceAlbSecurityGroup, Port.tcp(80), "Allow traffic from ALB");
 
+        // Creates the security group for proving dev machine and EC2 service instances access to the RDS instance
+        this.rdsAccessSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-rds-access-sg"))
+            .vpc(vpc)
+            .securityGroupName(projectName.concat("-rds-access-sg"))
+            .description("Allow dev machine access")
+            .allowAllOutbound(true)
+            .build();
+        this.rdsAccessSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(5432), "Allow dev machine access");
+        this.rdsAccessSecurityGroup.addIngressRule(this.serviceInstanceSecurityGroup, Port.tcp(5432), "Allow EC2 service instance access");
+
         // Creates the application target group
         targetGroup = ApplicationTargetGroup.Builder.create(this, projectName.concat("-service-tg"))
             .vpc(this.vpc)
@@ -108,7 +109,7 @@ public class FfxFireNetworkStack extends Stack {
             .protocol(ApplicationProtocol.HTTP)
             .port(80)
             .healthCheck(HealthCheck.builder()
-                .path("/stations")
+                .path("/actuator/health")
                 .port("80")
                 .build())
             .build();
