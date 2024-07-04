@@ -36,11 +36,15 @@ public class FfxFireNetworkStack extends Stack {
 
     private final Vpc vpc;
     private final SecurityGroup rdsAccessSecurityGroup;
-    private final SecurityGroup serviceInstanceSecurityGroup;
-    private final SecurityGroup serviceAlbSecurityGroup;
-    private final ApplicationTargetGroup targetGroup;
-    private final ApplicationLoadBalancer loadBalancer;
-    private final ApplicationListener listener;
+    private final SecurityGroup apiInstanceSecurityGroup;
+    private final SecurityGroup uiInstanceSecurityGroup;
+    private final SecurityGroup albSecurityGroup;
+    private final ApplicationTargetGroup apiTargetGroup;
+    private final ApplicationLoadBalancer apiLoadBalancer;
+    private final ApplicationListener apiListener;
+    private final ApplicationTargetGroup uiTargetGroup;
+    private final ApplicationLoadBalancer uiLoadBalancer;
+    private final ApplicationListener uiListener;
 
     public FfxFireNetworkStack(final Construct scope, final String id, final Map<String, Object> config) {
         this(scope, id, null, null);
@@ -54,6 +58,7 @@ public class FfxFireNetworkStack extends Stack {
         final String devMachineIp = config.get("dev_machine_ip").toString();
         final String domainName = config.get("domain_name").toString();
         final String apiDomain = config.get("api_domain").toString();
+        final String uiDomain = config.get("ui_domain").toString();
 
         // Creates the VPC with two public subnets
         this.vpc = Vpc.Builder.create(this, projectName.concat("-vpc"))
@@ -73,25 +78,35 @@ public class FfxFireNetworkStack extends Stack {
             .build();
 
         // Creates the ALB security group
-        this.serviceAlbSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-alb-sg"))
+        this.albSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-alb-sg"))
             .vpc(vpc)
             .securityGroupName(projectName.concat("-alb-sg"))
             .description("Allow http to the ALB")
             .allowAllOutbound(true)
             .build();
-        this.serviceAlbSecurityGroup.addIngressRule(Peer.ipv4("0.0.0.0/0"), Port.tcp(80), "Allow http access");
+        this.albSecurityGroup.addIngressRule(Peer.ipv4("0.0.0.0/0"), Port.tcp(80), "Allow http access");
 
-        // Creates the service instance security group
-        this.serviceInstanceSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-services-sg"))
+        // Creates the API instance security group
+        this.apiInstanceSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-api-sg"))
             .vpc(vpc)
-            .securityGroupName(projectName.concat("-services-sg"))
-            .description("Allow http and ssh access to services instances")
+            .securityGroupName(projectName.concat("-api-sg"))
+            .description("Allow http and ssh access to API instances")
             .allowAllOutbound(true)
             .build();
-        this.serviceInstanceSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(22), "Allow ssh access"); 
-        this.serviceInstanceSecurityGroup.addIngressRule(this.serviceAlbSecurityGroup, Port.tcp(80), "Allow traffic from ALB");
+        this.apiInstanceSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(22), "Allow ssh access"); 
+        this.apiInstanceSecurityGroup.addIngressRule(this.albSecurityGroup, Port.tcp(80), "Allow traffic from ALB");
 
-        // Creates the security group for proving dev machine and EC2 service instances access to the RDS instance
+        // Creates the UI instance security group
+        this.uiInstanceSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-ui-sg"))
+            .vpc(vpc)
+            .securityGroupName(projectName.concat("-ui-sg"))
+            .description("Allow http and ssh access to UI instances")
+            .allowAllOutbound(true)
+            .build();
+        this.uiInstanceSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(22), "Allow ssh access"); 
+        this.uiInstanceSecurityGroup.addIngressRule(this.albSecurityGroup, Port.tcp(80), "Allow traffic from ALB");
+
+        // Creates the security group for proving dev machine and API instances access to the RDS instance
         this.rdsAccessSecurityGroup = SecurityGroup.Builder.create(this, projectName.concat("-rds-access-sg"))
             .vpc(vpc)
             .securityGroupName(projectName.concat("-rds-access-sg"))
@@ -99,12 +114,12 @@ public class FfxFireNetworkStack extends Stack {
             .allowAllOutbound(true)
             .build();
         this.rdsAccessSecurityGroup.addIngressRule(Peer.ipv4(devMachineIp), Port.tcp(5432), "Allow dev machine access");
-        this.rdsAccessSecurityGroup.addIngressRule(this.serviceInstanceSecurityGroup, Port.tcp(5432), "Allow EC2 service instance access");
+        this.rdsAccessSecurityGroup.addIngressRule(this.apiInstanceSecurityGroup, Port.tcp(5432), "Allow EC2 service instance access");
 
-        // Creates the application target group
-        targetGroup = ApplicationTargetGroup.Builder.create(this, projectName.concat("-service-tg"))
+        // Creates the API application target group
+        this.apiTargetGroup = ApplicationTargetGroup.Builder.create(this, projectName.concat("-api-tg"))
             .vpc(this.vpc)
-            .targetGroupName(projectName.concat("-service-tg"))
+            .targetGroupName(projectName.concat("-api-tg"))
             .targetType(TargetType.INSTANCE)
             .protocol(ApplicationProtocol.HTTP)
             .port(80)
@@ -114,22 +129,52 @@ public class FfxFireNetworkStack extends Stack {
                 .build())
             .build();
 
-        // Creates the application load balancer
-        this.loadBalancer = ApplicationLoadBalancer.Builder.create(this, projectName.concat("-alb"))
-            .loadBalancerName(projectName.concat("-alb"))    
+        // Creates the UI application target group
+        this.uiTargetGroup = ApplicationTargetGroup.Builder.create(this, projectName.concat("-ui-tg"))
+            .vpc(this.vpc)
+            .targetGroupName(projectName.concat("-ui-tg"))
+            .targetType(TargetType.INSTANCE)
+            .protocol(ApplicationProtocol.HTTP)
+            .port(80)
+            .healthCheck(HealthCheck.builder()
+                .path("/")
+                .port("80")
+                .build())
+            .build();
+
+        // Creates the API application load balancer
+        this.apiLoadBalancer = ApplicationLoadBalancer.Builder.create(this, projectName.concat("-api-alb"))
+            .loadBalancerName(projectName.concat("-api-alb"))    
             .vpc(this.vpc)
             .crossZoneEnabled(true)
             .internetFacing(true)
-            .securityGroup(serviceAlbSecurityGroup)
+            .securityGroup(this.albSecurityGroup)
             .build();
-        this.listener = this.loadBalancer.addListener(projectName.concat("-listener"), BaseApplicationListenerProps.builder()
+        this.apiListener = this.apiLoadBalancer.addListener(projectName.concat("-api-listener"), BaseApplicationListenerProps.builder()
             .protocol(ApplicationProtocol.HTTP)
             .port(80)
             .build());
 
-        List<IApplicationTargetGroup> targetGroups = new ArrayList<IApplicationTargetGroup>();
-        targetGroups.add(targetGroup);
-        this.listener.addTargetGroups(projectName.concat("-tgs"), AddApplicationTargetGroupsProps.builder().targetGroups(targetGroups).build()); 
+        List<IApplicationTargetGroup> apiTargetGroups = new ArrayList<IApplicationTargetGroup>();
+        apiTargetGroups.add(this.apiTargetGroup);
+        this.apiListener.addTargetGroups(projectName.concat("-api-tgs"), AddApplicationTargetGroupsProps.builder().targetGroups(apiTargetGroups).build()); 
+
+        // Creates the UI application load balancer
+        this.uiLoadBalancer = ApplicationLoadBalancer.Builder.create(this, projectName.concat("-ui-alb"))
+            .loadBalancerName(projectName.concat("-ui-alb"))    
+            .vpc(this.vpc)
+            .crossZoneEnabled(true)
+            .internetFacing(true)
+            .securityGroup(this.albSecurityGroup)
+            .build();
+        this.uiListener = this.uiLoadBalancer.addListener(projectName.concat("-ui-listener"), BaseApplicationListenerProps.builder()
+            .protocol(ApplicationProtocol.HTTP)
+            .port(80)
+            .build());
+
+        List<IApplicationTargetGroup> uiTargetGroups = new ArrayList<IApplicationTargetGroup>();
+        uiTargetGroups.add(this.uiTargetGroup);
+        this.uiListener.addTargetGroups(projectName.concat("-ui-tgs"), AddApplicationTargetGroupsProps.builder().targetGroups(uiTargetGroups).build());
 
         // Creates the hosted zone
         HostedZoneProviderProps zoneProps = HostedZoneProviderProps.builder()
@@ -138,7 +183,13 @@ public class FfxFireNetworkStack extends Stack {
         IHostedZone hostedZone = HostedZone.fromLookup(this, projectName.concat("-hz"), zoneProps);
         CnameRecord.Builder.create(this, projectName.concat("-api-cname"))
             .recordName(apiDomain)
-            .domainName(this.loadBalancer.getLoadBalancerDnsName())
+            .domainName(this.apiLoadBalancer.getLoadBalancerDnsName())
+            .zone(hostedZone)
+            .ttl(Duration.seconds(300))
+            .build();
+        CnameRecord.Builder.create(this, projectName.concat("-ui-cname"))
+            .recordName(uiDomain)
+            .domainName(this.uiLoadBalancer.getLoadBalancerDnsName())
             .zone(hostedZone)
             .ttl(Duration.seconds(300))
             .build();
@@ -152,11 +203,15 @@ public class FfxFireNetworkStack extends Stack {
         return this.rdsAccessSecurityGroup;
     }
 
-    public SecurityGroup getServiceInstanceSecurityGroup() {
-        return this.serviceInstanceSecurityGroup;
+    public SecurityGroup getApiInstanceSecurityGroup() {
+        return this.apiInstanceSecurityGroup;
     }
 
+    public SecurityGroup getUiInstanceSecurityGroup() {
+        return this.uiInstanceSecurityGroup;
+    }    
+
     public ApplicationTargetGroup getServiceTargetGroup() {
-        return this.targetGroup;
+        return this.apiTargetGroup;
     } 
 }

@@ -13,3 +13,4 @@ key_pair_name: <AWS EC2 key pair name>
 
 domain_name: <The application's domain name>
 api_domain: <The API's sub domain name>
+ui_domain: <The UI's sub domain name>

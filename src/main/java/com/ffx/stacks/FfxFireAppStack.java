@@ -74,7 +74,7 @@ public class FfxFireAppStack extends Stack {
             .vpc(network.getVpc())
             .instanceType(InstanceType.of(InstanceClass.T2, InstanceSize.MICRO))
             .machineImage(AmazonLinuxImage.Builder.create().generation(AmazonLinuxGeneration.AMAZON_LINUX_2023).build())
-            .securityGroup(network.getServiceInstanceSecurityGroup())
+            .securityGroup(network.getApiInstanceSecurityGroup())
             .keyName(keyPairName)
             .role(role)
             .minCapacity(0)
