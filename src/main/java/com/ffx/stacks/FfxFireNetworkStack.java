@@ -211,7 +211,11 @@ public class FfxFireNetworkStack extends Stack {
         return this.uiInstanceSecurityGroup;
     }    
 
-    public ApplicationTargetGroup getServiceTargetGroup() {
+    public ApplicationTargetGroup getApiTargetGroup() {
         return this.apiTargetGroup;
+    }
+
+    public ApplicationTargetGroup getUiTargetGroup() {
+        return this.uiTargetGroup;
     } 
 }

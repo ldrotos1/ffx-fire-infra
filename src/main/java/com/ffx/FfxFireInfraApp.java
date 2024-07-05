@@ -7,6 +7,7 @@ import com.ffx.config.Bootstrap;
 import com.ffx.config.Configuration;
 import com.ffx.stacks.FfxFireNetworkStack;
 import com.ffx.stacks.FfxFireApiStack;
+import com.ffx.stacks.FfxFireUiStack;
 import com.ffx.stacks.FfxFireStagingStack;
 import com.ffx.stacks.FfxFireDataStoreStack;
 
@@ -24,6 +25,7 @@ public class FfxFireInfraApp {
 		final FfxFireDataStoreStack ffxFireDataStoreStack;
 		final FfxFireStagingStack ffxFireStagingStack;
 		final FfxFireApiStack ffxFireApiStack;
+		final FfxFireUiStack ffxFireUiStack;
 
 		try {
 			App app = new App();
@@ -40,6 +42,7 @@ public class FfxFireInfraApp {
 			ffxFireDataStoreStack = new FfxFireDataStoreStack(app, "FfxFireDataStoreStack", props, configMap, ffxFireNetworkStack);
 			ffxFireStagingStack = new FfxFireStagingStack(app,  "FfxFireStagingStack", props, configMap);
 			ffxFireApiStack = new FfxFireApiStack(app, "FfxFireApiStack", props, configMap, ffxFireNetworkStack, ffxFireStagingStack);
+			ffxFireUiStack = new FfxFireUiStack(app, "FfxFireUiStack", props, configMap, ffxFireNetworkStack, ffxFireStagingStack);
 
       app.synth();
 		} 
