@@ -6,7 +6,7 @@ import java.util.Map;
 import com.ffx.config.Bootstrap;
 import com.ffx.config.Configuration;
 import com.ffx.stacks.FfxFireNetworkStack;
-import com.ffx.stacks.FfxFireAppStack;
+import com.ffx.stacks.FfxFireApiStack;
 import com.ffx.stacks.FfxFireStagingStack;
 import com.ffx.stacks.FfxFireDataStoreStack;
 
@@ -23,7 +23,7 @@ public class FfxFireInfraApp {
 		final FfxFireNetworkStack ffxFireNetworkStack;
 		final FfxFireDataStoreStack ffxFireDataStoreStack;
 		final FfxFireStagingStack ffxFireStagingStack;
-		final FfxFireAppStack ffxFireAppStack;
+		final FfxFireApiStack ffxFireApiStack;
 
 		try {
 			App app = new App();
@@ -39,7 +39,7 @@ public class FfxFireInfraApp {
 			ffxFireNetworkStack = new FfxFireNetworkStack(app, "FfxFireNetworkStack", props, configMap);
 			ffxFireDataStoreStack = new FfxFireDataStoreStack(app, "FfxFireDataStoreStack", props, configMap, ffxFireNetworkStack);
 			ffxFireStagingStack = new FfxFireStagingStack(app,  "FfxFireStagingStack", props, configMap);
-			ffxFireAppStack = new FfxFireAppStack(app, "FfxFireAppStack", props, configMap, ffxFireNetworkStack);
+			ffxFireApiStack = new FfxFireApiStack(app, "FfxFireApiStack", props, configMap, ffxFireNetworkStack, ffxFireStagingStack);
 
       app.synth();
 		} 

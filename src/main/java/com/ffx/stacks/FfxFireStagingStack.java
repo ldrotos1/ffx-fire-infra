@@ -16,6 +16,7 @@ import software.constructs.Construct;
 
 public class FfxFireStagingStack extends Stack {
     
+    private final Bucket stagingBucket;
     private final Role assetsAccessRole;
 
     public FfxFireStagingStack(final Construct scope, final String id, final Map<String, Object> config) {
@@ -28,14 +29,14 @@ public class FfxFireStagingStack extends Stack {
         final String projectName = config.get("project_name").toString();
         
         // Creates the staging bucket for storing artifacts that will be deployed
-        Bucket bucket = Bucket.Builder.create(this, projectName.concat("-staging"))
+        this.stagingBucket = Bucket.Builder.create(this, projectName.concat("-staging"))
             .bucketName(projectName.concat("-staging"))
             .removalPolicy(RemovalPolicy.DESTROY)
             .autoDeleteObjects(true)
             .build(); 
         BucketDeployment.Builder.create(this, "deploy-service-assets")
             .sources(List.of(Source.asset("./assets")))
-            .destinationBucket(bucket)
+            .destinationBucket(this.stagingBucket)
             .build();
 
         // Creates the IAM role that will give read access to the staging bucket 
@@ -49,5 +50,9 @@ public class FfxFireStagingStack extends Stack {
 
     public Role getAssetsAccessRole() {
         return this.assetsAccessRole;
+    }
+
+    public String getStagingBucketName() {
+        return this.stagingBucket.getBucketName();
     }
 }
